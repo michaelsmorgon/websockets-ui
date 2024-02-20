@@ -1,17 +1,25 @@
 import { WebSocket } from 'ws';
-import { Format, MessageType } from './constants';
+import { IFormat, ILoginData, MessageType, ISavingPlayer } from './constants';
+import { Player } from './Player';
+import { createPlayer } from './controller';
+
+const playerList: ISavingPlayer[] = [];
 
 export const connectionHandler = (ws: WebSocket) => {
+  let player: Player;
   ws.on('message', (request: string) => {
     console.log('received: %s', request);
-    const { type, data } = JSON.parse(request) as Format;
+    const { type, data } = JSON.parse(request) as IFormat;
 
-    console.log('type: %s', type);
-    console.log('data: %s', data);
+    console.log('PlayerList: %s', playerList);
 
     switch (type) {
       case MessageType.REG:
-        
+        player = new Player(JSON.parse(data) as ILoginData);
+        if (player.isValid(playerList)) {
+          playerList.push(player.getPlayer());
+        }
+        ws.send(JSON.stringify(createPlayer(player.getRegObj())));
         break;
     }
   });

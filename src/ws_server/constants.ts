@@ -26,8 +26,26 @@ export enum AttackStatus {
   SHOT = 'shot',
 }
 
-export interface Format {
+export interface IFormat {
   type: string,
   data: string,
   id: number,
+}
+
+export interface ILoginData {
+  name: string,
+  password: string,
+}
+
+export interface ISavingPlayer {
+  name: string,
+  index: number,
+  password: string,
+}
+
+export interface IPlayer {
+  name: string,
+  index: number,
+  error: boolean,
+  errorText: string,
 }
