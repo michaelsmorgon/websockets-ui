@@ -16,10 +16,15 @@ export const connectionHandler = (ws: WebSocket) => {
     switch (type) {
       case MessageType.REG:
         player = new Player(JSON.parse(data) as ILoginData);
-        if (player.isValid(playerList)) {
+        const isValid = player.isValid(playerList);
+        if (isValid) {
           playerList.push(player.getPlayer());
         }
-        ws.send(JSON.stringify(createPlayer(player.getRegObj())));
+        ws.send(createPlayer(player.getRegObj()));
+
+        if (isValid) {
+
+        }
         break;
     }
   });
