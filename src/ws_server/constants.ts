@@ -49,3 +49,16 @@ export interface IPlayer {
   error: boolean,
   errorText: string,
 }
+
+export interface IRoomData {
+  roomId: number,
+  roomUsers: {
+    name: string,
+    index: number
+  }[],
+}
+
+export interface IWinner {
+  name: string,
+  wins: number,
+}
