@@ -26,39 +26,44 @@ export enum AttackStatus {
   SHOT = 'shot',
 }
 
-export interface IFormat {
-  type: string,
-  data: string,
-  id: number,
+export interface FormatMsg {
+  type: string;
+  data: string;
+  id: number;
 }
 
-export interface ILoginData {
-  name: string,
-  password: string,
+export interface LoginReq {
+  name: string;
+  password: string;
 }
 
-export interface ISavingPlayer {
-  name: string,
-  index: number,
-  password: string,
+export interface PlayerRes {
+  name: string;
+  index: number;
+  error: boolean;
+  errorText: string;
 }
 
-export interface IPlayer {
-  name: string,
-  index: number,
-  error: boolean,
-  errorText: string,
+export interface RoomPlayer {
+  name: string;
+  index: number;
 }
 
-export interface IRoomData {
-  roomId: number,
-  roomUsers: {
-    name: string,
-    index: number
-  }[],
+export interface RoomInfo {
+  roomId: number;
+  roomUsers: RoomPlayer[];
 }
 
-export interface IWinner {
-  name: string,
-  wins: number,
+export interface Winner {
+  name: string;
+  wins: number;
+}
+
+export interface RoomIndex {
+  indexRoom: number;
+}
+
+export interface IGameData {
+  idGame: number;
+  idPlayer: number;
 }

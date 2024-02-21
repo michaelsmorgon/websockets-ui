@@ -1,25 +1,60 @@
-import { IRoomData } from "./constants";
+import { RoomInfo, RoomPlayer } from './constants';
 
 let lastRoomIndex = 0;
 
 export class Room {
-  private indexRoom: number;
+  private id: number;
+  private roomPlayers: RoomPlayer[] = [];
 
   constructor(indexRoom?: number) {
     if (indexRoom) {
-      this.indexRoom = indexRoom;
+      this.id = indexRoom;
     } else {
-      this.indexRoom = ++lastRoomIndex;
+      this.id = ++lastRoomIndex;
     }
   }
 
-  public addNew = (userName: string, userIndex: number): IRoomData => {
-    return {
-      roomId: this.indexRoom,
-      roomUsers: [{
+  public getId = (): number => {
+    return this.id;
+  };
+
+  public addUserToRoom = (userName: string, userIndex: number, roomList: RoomInfo[]): void => {
+    const index = roomList.findIndex((elem) => {
+      return elem.roomId === this.id;
+    });
+    if (index !== -1) {
+      const inRoom = roomList[index]?.roomUsers.find(
+        (roomPlayer) => roomPlayer.name === userName && roomPlayer.index === userIndex,
+      );
+      if (inRoom) {
+        return;
+      }
+      this.roomPlayers.push({
         name: userName,
-        index: userIndex
-      }]
+        index: userIndex,
+      });
+      const room = roomList[index];
+      if (!room) {
+        return;
+      }
+      roomList.splice(index, 1, {
+        roomId: room.roomId,
+        roomUsers: [...room.roomUsers, ...this.roomPlayers],
+      });
+      return;
     }
-  }
+    this.roomPlayers.push({
+      name: userName,
+      index: userIndex,
+    });
+    roomList.push({
+      roomId: this.id,
+      roomUsers: this.roomPlayers,
+    });
+  };
+
+  public removeRoom = (roomList: RoomInfo[], indexRoom: number): void => {
+    const index = roomList.findIndex((elem) => elem.roomId === indexRoom);
+    roomList.splice(index, 1);
+  };
 }
