@@ -18,12 +18,10 @@ export class Room {
     return this.id;
   };
 
-  public addUserToRoom = (userName: string, userIndex: number, roomList: RoomInfo[]): void => {
-    const index = roomList.findIndex((elem) => {
-      return elem.roomId === this.id;
-    });
-    if (index !== -1) {
-      const inRoom = roomList[index]?.roomUsers.find(
+  public addUserToRoom = (userName: string, userIndex: number, roomList: Map<number, RoomInfo>): void => {
+    const findRoom = roomList.get(this.id);
+    if (findRoom) {
+      const inRoom = findRoom?.roomUsers.find(
         (roomPlayer) => roomPlayer.name === userName && roomPlayer.index === userIndex,
       );
       if (inRoom) {
@@ -33,28 +31,25 @@ export class Room {
         name: userName,
         index: userIndex,
       });
-      const room = roomList[index];
-      if (!room) {
-        return;
+      const newRoom = {
+        roomId: findRoom.roomId,
+        roomUsers: [...findRoom.roomUsers, ...this.roomPlayers],
       }
-      roomList.splice(index, 1, {
-        roomId: room.roomId,
-        roomUsers: [...room.roomUsers, ...this.roomPlayers],
-      });
+      roomList.delete(this.id);
+      roomList.set(this.id, newRoom);
       return;
     }
     this.roomPlayers.push({
       name: userName,
       index: userIndex,
     });
-    roomList.push({
+    roomList.set(this.id, {
       roomId: this.id,
       roomUsers: this.roomPlayers,
     });
   };
 
-  public removeRoom = (roomList: RoomInfo[], indexRoom: number): void => {
-    const index = roomList.findIndex((elem) => elem.roomId === indexRoom);
-    roomList.splice(index, 1);
+  public removeRoom = (roomList: Map<number, RoomInfo>, indexRoom: number): void => {
+    roomList.delete(indexRoom);
   };
 }

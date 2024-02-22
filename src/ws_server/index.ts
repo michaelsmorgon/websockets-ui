@@ -4,7 +4,6 @@ import { Player, PlayerStore } from './Player';
 import {
   sendCreateGame,
   sendCreatePlayer,
-  sendUpdateRoom,
   sendUpdateRoomForAll,
   sendUpdateWinners,
 } from './controller';
@@ -12,10 +11,11 @@ import { Room } from './Room';
 import { Game, GameStore } from './Game';
 import { parseData, parseRequest } from './utils';
 
-const playerList: PlayerStore[] = [];
-const roomList: list.RoomInfo[] = [];
+const playerList: Map<string, PlayerStore> = new Map();
+const roomList: Map<number, list.RoomInfo> = new Map();
 const winnersList: list.Winner[] = [];
-const gameList: GameStore[] = [];
+const gameList: Map<number, GameStore> = new Map();
+const connectionList: Map<number, WebSocket> = new Map();
 
 export const connectionHandler = (ws: WebSocket): void => {
   let player: Player;
@@ -34,7 +34,8 @@ export const connectionHandler = (ws: WebSocket): void => {
         sendCreatePlayer(player.getRegObj(), ws);
 
         if (!player.isError()) {
-          sendUpdateRoom(roomList, ws);
+          connectionList.set(player.getId(), ws);
+          sendUpdateRoomForAll([...roomList.values()], playerList);
           sendUpdateWinners(winnersList, ws);
         }
         break;
@@ -43,27 +44,44 @@ export const connectionHandler = (ws: WebSocket): void => {
           room = new Room();
           room.addUserToRoom(player.getName(), player.getId(), roomList);
         }
-        sendUpdateRoom(roomList, ws);
+        sendUpdateRoomForAll([...roomList.values()], playerList);
         break;
       case list.MessageType.ADD_USER_TO_ROOM:
         const { indexRoom } = JSON.parse(data) as list.RoomIndex;
+        let oldRoomId = null;
+        if (room) {
+          oldRoomId = room.getId();
+        }
         room = new Room(indexRoom);
         room.addUserToRoom(player.getName(), player.getId(), roomList);
-        const findRoom = roomList.find((elem) => elem.roomId === indexRoom);
+        const findRoom = roomList.get(indexRoom);
         if (findRoom?.roomUsers.length === 2) {
-          game = new Game();
-          findRoom.roomUsers.forEach((user) => {
-            const playerInfo = playerList.find((player) => player.index! === user.index);
-            sendCreateGame(game.createNew(user.index), playerInfo?.ws!);
-          });
-          gameList.push({
-            idGame: game.getIdGame(),
-            players: game.getPlayers(),
+          game = new Game(gameList);
+          findRoom.roomUsers.forEach((user) => game.addUser(user.index, gameList));
+          const response = game.getCreateGameObj(gameList);
+          
+          response.forEach((elem) => {
+            playerList.forEach((player) => {
+              if (player.index! === elem.idPlayer) {
+                sendCreateGame(elem, player?.ws!);
+              }
+            });
           });
           room.removeRoom(roomList, indexRoom);
-          sendUpdateRoomForAll(roomList, playerList);
+          if (oldRoomId) {
+            room.removeRoom(roomList, oldRoomId);
+          }
+          sendUpdateRoomForAll([...roomList.values()], playerList);
         }
 
+        break;
+      case list.MessageType.ADD_SHIPS:
+        const addShipReq = JSON.parse(data) as list.AddShipsReq;
+        if (!game) {
+          game = new Game(gameList, addShipReq.gameId);
+        }
+        game.addShips(addShipReq, gameList);
+        game.gameStartIfReady(gameList, connectionList, player.getId());
         break;
     }
   });
@@ -72,6 +90,7 @@ export const connectionHandler = (ws: WebSocket): void => {
 
   ws.on('close', () => {
     if (player) {
+      connectionList.delete(player.getId());
       player.removePlayerSession(playerList);
     }
     if (room) {

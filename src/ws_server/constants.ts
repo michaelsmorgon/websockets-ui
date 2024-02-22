@@ -63,7 +63,47 @@ export interface RoomIndex {
   indexRoom: number;
 }
 
-export interface IGameData {
+export interface CreateGameRes {
   idGame: number;
   idPlayer: number;
+}
+
+export interface Position {
+  x: number;
+  y: number;
+}
+
+export interface Ship {
+  position: Position;
+  direction: boolean;
+  length: number;
+  type: ShipType;
+}
+
+export interface AddShipsReq {
+  gameId: number;
+  ships: Ship[];
+  indexPlayer: number;
+}
+
+export interface StartGameRes {
+  ships: Ship[],
+  currentPlayerIndex: number,
+}
+
+export interface Turn {
+  currentPlayer: number;
+}
+
+export interface AttackReq {
+  gameId: number;
+  x?: number;
+  y?: number;
+  indexPlayer: number;
+}
+
+export interface AttackRes {
+  position: Position;
+  currentPlayer: number;
+  status: AttackStatus;
 }

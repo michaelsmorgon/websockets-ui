@@ -38,12 +38,11 @@ export class Player {
     return this.error;
   };
 
-  public validate = (playerList: PlayerStore[]): void => {
-    const player = playerList.find((elem) => {
-      return elem.name === this.name;
-    });
+  public validate = (playerList: Map<string, PlayerStore>): void => {
+    const hasName = playerList.has(this.name);
 
-    if (player) {
+    if (hasName) {
+      const player = playerList.get(this.name)!;
       if (player.password !== this.password) {
         this.error = true;
         this.errorText = 'Login or Password is Incorrect';
@@ -61,7 +60,7 @@ export class Player {
     }
 
     this.index = ++lastUserIndex;
-    playerList.push(this.getPlayer());
+    playerList.set(this.name, this.getPlayer());
   };
 
   public getPlayer = (): PlayerStore => {
@@ -83,17 +82,9 @@ export class Player {
     };
   };
 
-  public removePlayerSession = (playerList: PlayerStore[]): void => {
-    const playerInfo = playerList.find((elem) => elem.index === this.index);
-    const index = playerList.findIndex((elem) => elem.index === this.index);
-
-    if (playerInfo) {
-      const exitPlayer: PlayerStore = {
-        name: playerInfo.name,
-        password: playerInfo.password,
-        wins: playerInfo.wins,
-      };
-      playerList.splice(index, 1, exitPlayer);
+  public removePlayerSession = (playerList: Map<string, PlayerStore>): void => {
+    if (playerList.has(this.name)) {
+      playerList.delete(this.name);
     }
   };
 }

@@ -16,7 +16,7 @@ export const sendUpdateRoom = (data: list.RoomInfo[], ws: WebSocket, showMsg = t
   }
 };
 
-export const sendUpdateRoomForAll = (data: list.RoomInfo[], playerList: PlayerStore[]): void => {
+export const sendUpdateRoomForAll = (data: list.RoomInfo[], playerList: Map<string, PlayerStore>): void => {
   let showMsg = true;
   playerList.forEach((player) => {
     if (player.ws) {
@@ -26,16 +26,40 @@ export const sendUpdateRoomForAll = (data: list.RoomInfo[], playerList: PlayerSt
   });
 };
 
-export const sendUpdateWinners = (data: list.Winner[], ws: WebSocket): void => {
+export const sendUpdateWinners = (data: list.Winner[], ws: WebSocket, showMsg = true): void => {
   const response = getObj(list.MessageType.UPDATE_WINNERS, JSON.stringify(data));
   ws.send(response);
-  console.log('Update Winners response: ', response);
+  if (showMsg) {
+    console.log('Update Winners response: ', response);
+  }
 };
 
-export const sendCreateGame = (data: list.IGameData, ws: WebSocket): void => {
+export const sendUpdateWinnersForAll = (data: list.Winner[], playerList: PlayerStore[]): void => {
+  let showMsg = true;
+  playerList.forEach((player) => {
+    if (player.ws) {
+      sendUpdateWinners(data, player.ws, showMsg);
+      showMsg = false;
+    }
+  });
+};
+
+export const sendCreateGame = (data: list.CreateGameRes, ws: WebSocket): void => {
   const response = getObj(list.MessageType.CREATE_GAME, JSON.stringify(data));
   ws.send(response);
   console.log('Create Game response: ', response);
+};
+
+export const sendStartGame = (data: list.StartGameRes, ws: WebSocket): void => {
+  const response = getObj(list.MessageType.START_GAME, JSON.stringify(data));
+  ws.send(response);
+  console.log('Start Game response: ', response);
+};
+
+export const sendTurn = (data: list.Turn, ws: WebSocket): void => {
+  const response = getObj(list.MessageType.TURN, JSON.stringify(data));
+  ws.send(response);
+  console.log('Turn response: ', response);
 };
 
 const getObj = (type: string, data: string): string => {
