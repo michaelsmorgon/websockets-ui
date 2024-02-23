@@ -87,8 +87,8 @@ export interface AddShipsReq {
 }
 
 export interface StartGameRes {
-  ships: Ship[],
-  currentPlayerIndex: number,
+  ships: Ship[];
+  currentPlayerIndex: number;
 }
 
 export interface Turn {
@@ -106,4 +106,19 @@ export interface AttackRes {
   position: Position;
   currentPlayer: number;
   status: AttackStatus;
+}
+
+export interface CoordinatesShips {
+  coordinates: Map<string, Position>;
+  compartmentsCnt: number;
+  emptyCell: Map<string, Position>;
+}
+
+export interface AttackShips {
+  coordinatesShips: CoordinatesShips[];
+  attack: string[];
+}
+
+export interface TurnPlayerId {
+  value: number | null;
 }

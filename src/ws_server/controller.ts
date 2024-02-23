@@ -62,6 +62,12 @@ export const sendTurn = (data: list.Turn, ws: WebSocket): void => {
   console.log('Turn response: ', response);
 };
 
+export const sendAttackRes = (data: list.AttackRes, ws: WebSocket): void => {
+  const response = getObj(list.MessageType.ATTACK, JSON.stringify(data));
+  ws.send(response);
+  console.log('Attack response: ', response);
+};
+
 const getObj = (type: string, data: string): string => {
   const obj: list.FormatMsg = {
     type: type,

@@ -1,12 +1,7 @@
 import { WebSocket } from 'ws';
 import * as list from './constants';
 import { Player, PlayerStore } from './Player';
-import {
-  sendCreateGame,
-  sendCreatePlayer,
-  sendUpdateRoomForAll,
-  sendUpdateWinners,
-} from './controller';
+import { sendCreateGame, sendCreatePlayer, sendUpdateRoomForAll, sendUpdateWinners } from './controller';
 import { Room } from './Room';
 import { Game, GameStore } from './Game';
 import { parseData, parseRequest } from './utils';
@@ -16,6 +11,8 @@ const roomList: Map<number, list.RoomInfo> = new Map();
 const winnersList: list.Winner[] = [];
 const gameList: Map<number, GameStore> = new Map();
 const connectionList: Map<number, WebSocket> = new Map();
+const attackShipsList: Map<number, list.AttackShips> = new Map();
+const turnPlayerId: list.TurnPlayerId = { value: null };
 
 export const connectionHandler = (ws: WebSocket): void => {
   let player: Player;
@@ -59,11 +56,11 @@ export const connectionHandler = (ws: WebSocket): void => {
           game = new Game(gameList);
           findRoom.roomUsers.forEach((user) => game.addUser(user.index, gameList));
           const response = game.getCreateGameObj(gameList);
-          
+
           response.forEach((elem) => {
             playerList.forEach((player) => {
-              if (player.index! === elem.idPlayer) {
-                sendCreateGame(elem, player?.ws!);
+              if (player && player?.ws && player.index === elem.idPlayer) {
+                sendCreateGame(elem, player?.ws);
               }
             });
           });
@@ -80,8 +77,13 @@ export const connectionHandler = (ws: WebSocket): void => {
         if (!game) {
           game = new Game(gameList, addShipReq.gameId);
         }
-        game.addShips(addShipReq, gameList);
-        game.gameStartIfReady(gameList, connectionList, player.getId());
+        game.addShips(addShipReq, gameList, attackShipsList);
+        game.gameStartIfReady(gameList, connectionList, player.getId(), turnPlayerId);
+        break;
+      case list.MessageType.ATTACK:
+      case list.MessageType.RANDOM_ATTACK:
+        const attackReq = JSON.parse(data) as list.AttackReq;
+        game.attack(gameList, attackShipsList, connectionList, attackReq, turnPlayerId);
         break;
     }
   });
@@ -91,6 +93,7 @@ export const connectionHandler = (ws: WebSocket): void => {
   ws.on('close', () => {
     if (player) {
       connectionList.delete(player.getId());
+      attackShipsList.delete(player.getId());
       player.removePlayerSession(playerList);
     }
     if (room) {

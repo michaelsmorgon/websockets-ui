@@ -34,7 +34,7 @@ export class Room {
       const newRoom = {
         roomId: findRoom.roomId,
         roomUsers: [...findRoom.roomUsers, ...this.roomPlayers],
-      }
+      };
       roomList.delete(this.id);
       roomList.set(this.id, newRoom);
       return;

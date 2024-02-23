@@ -42,7 +42,10 @@ export class Player {
     const hasName = playerList.has(this.name);
 
     if (hasName) {
-      const player = playerList.get(this.name)!;
+      const player = playerList.get(this.name);
+      if (!player) {
+        return;
+      }
       if (player.password !== this.password) {
         this.error = true;
         this.errorText = 'Login or Password is Incorrect';
