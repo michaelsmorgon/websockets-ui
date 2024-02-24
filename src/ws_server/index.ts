@@ -37,7 +37,7 @@ export const connectionHandler = (ws: WebSocket): void => {
         }
         break;
       case list.MessageType.CREATE_ROOM:
-        if (!room || !room.getId()) {
+        if (!room || !room.getId() || !roomList.has(room.getId())) {
           room = new Room();
           room.addUserToRoom(player.getName(), player.getId(), roomList);
         }
@@ -75,6 +75,8 @@ export const connectionHandler = (ws: WebSocket): void => {
       case list.MessageType.ADD_SHIPS:
         const addShipReq = JSON.parse(data) as list.AddShipsReq;
         if (!game) {
+          game = new Game(gameList, addShipReq.gameId);
+        } else if (!gameList.has(game.getId())) {
           game = new Game(gameList, addShipReq.gameId);
         }
         game.addShips(addShipReq, gameList, attackShipsList);

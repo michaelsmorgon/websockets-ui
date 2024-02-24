@@ -44,6 +44,10 @@ export class Game {
     }
   }
 
+  public getId = (): number => {
+    return this.idGame;
+  };
+
   public getCreateGameObj = (gameList: Map<number, GameStore>): CreateGameRes[] => {
     const obj: CreateGameRes[] = [];
     const gameInfo = gameList.get(this.idGame);
@@ -278,14 +282,20 @@ export class Game {
       }
       sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
       sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
-      this.checkFinishGame(
+      const isFinished = this.checkFinishGame(
         attackShipsList,
         connectionList,
         winnersList,
         playerList,
+        gameList,
         currentPlayer.idPlayer,
         enemy?.idPlayer,
+        attackReq.gameId,
       );
+      if (isFinished) {
+        turnPlayerId = { value: null };
+        gameList.delete(attackReq.gameId);
+      }
     }
   }
 
@@ -367,9 +377,11 @@ export class Game {
     connectionList: Map<number, WebSocket>,
     winnersList: Winner[],
     playerList: Map<string, PlayerStore>,
+    gameList: Map<number, GameStore>,
     playerId: number,
     enemyId: number,
-  ): void => {
+    gameId: number,
+  ): boolean => {
     const compartmentsCnt = attackShipsList.get(playerId)?.goals;
 
     if (compartmentsCnt === 20) {
@@ -384,10 +396,21 @@ export class Game {
       });
       if (username) {
         const index = winnersList.findIndex((elem) => elem.name === username);
-        winnersList.splice(index, 1, {
+        let wins = winnersList[index]?.wins;
+        if (wins) {
+          wins = wins + 1;
+        } else {
+          wins = 1;
+        }
+        const winner: Winner = {
           name: username,
-          wins: (winnersList[index]?.wins ?? 0) + 1,
-        });
+          wins: wins,
+        };
+        if (index === -1) {
+          winnersList.push(winner);
+        } else {
+          winnersList.splice(index, 1, winner);
+        }
       }
       const currentWs = connectionList.get(playerId);
       if (currentWs) {
@@ -399,6 +422,11 @@ export class Game {
         sendFinishGameRes(res, enemyWs);
         sendUpdateWinners(winnersList, enemyWs);
       }
+      gameList.delete(gameId);
+      attackShipsList.delete(playerId);
+      attackShipsList.delete(enemyId);
+      return true;
     }
+    return false;
   };
 }
