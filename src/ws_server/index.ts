@@ -37,7 +37,7 @@ export const connectionHandler = (ws: WebSocket): void => {
         }
         break;
       case list.MessageType.CREATE_ROOM:
-        if (!room) {
+        if (!room || !room.getId()) {
           room = new Room();
           room.addUserToRoom(player.getName(), player.getId(), roomList);
         }
@@ -83,7 +83,7 @@ export const connectionHandler = (ws: WebSocket): void => {
       case list.MessageType.ATTACK:
       case list.MessageType.RANDOM_ATTACK:
         const attackReq = JSON.parse(data) as list.AttackReq;
-        game.attack(gameList, attackShipsList, connectionList, attackReq, turnPlayerId);
+        game.attack(gameList, attackShipsList, connectionList, winnersList, playerList, attackReq, turnPlayerId);
         break;
     }
   });

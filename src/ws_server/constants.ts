@@ -108,6 +108,10 @@ export interface AttackRes {
   status: AttackStatus;
 }
 
+export interface FinishGameRes {
+  winPlayer: number;
+}
+
 export interface CoordinatesShips {
   coordinates: Map<string, Position>;
   compartmentsCnt: number;
@@ -117,6 +121,7 @@ export interface CoordinatesShips {
 export interface AttackShips {
   coordinatesShips: CoordinatesShips[];
   attack: string[];
+  goals: number;
 }
 
 export interface TurnPlayerId {

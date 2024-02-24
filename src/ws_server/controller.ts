@@ -68,6 +68,12 @@ export const sendAttackRes = (data: list.AttackRes, ws: WebSocket): void => {
   console.log('Attack response: ', response);
 };
 
+export const sendFinishGameRes = (data: list.FinishGameRes, ws: WebSocket): void => {
+  const response = getObj(list.MessageType.FINISH, JSON.stringify(data));
+  ws.send(response);
+  console.log('Finish response: ', response);
+};
+
 const getObj = (type: string, data: string): string => {
   const obj: list.FormatMsg = {
     type: type,

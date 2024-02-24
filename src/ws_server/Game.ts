@@ -1,6 +1,21 @@
 import { WebSocket } from 'ws';
-import { AddShipsReq, AttackReq, AttackRes, AttackStatus, CoordinatesShips, CreateGameRes, Position, Ship, StartGameRes, TurnPlayerId, AttackShips } from './constants';
-import { sendAttackRes, sendStartGame, sendTurn } from './controller';
+import {
+  AddShipsReq,
+  AttackReq,
+  AttackRes,
+  AttackStatus,
+  CoordinatesShips,
+  CreateGameRes,
+  Position,
+  Ship,
+  StartGameRes,
+  TurnPlayerId,
+  AttackShips,
+  FinishGameRes,
+  Winner,
+} from './constants';
+import { sendAttackRes, sendFinishGameRes, sendStartGame, sendTurn, sendUpdateWinners } from './controller';
+import { PlayerStore } from './Player';
 
 let lastGameIndex = 0;
 
@@ -56,17 +71,20 @@ export class Game {
   public addShips = (
     shipReq: AddShipsReq,
     gameList: Map<number, GameStore>,
-    attackShipsList: Map<number, AttackShips>
+    attackShipsList: Map<number, AttackShips>,
   ): void => {
     if (this.idGame === shipReq.gameId) {
       const gameInfo = gameList.get(this.idGame);
       const indexPlayer = gameInfo?.players.findIndex((elem) => elem.idPlayer === shipReq.indexPlayer);
       if (indexPlayer !== undefined && indexPlayer !== -1 && gameInfo) {
-        gameInfo?.players.splice(indexPlayer, 1, {
-          ...gameInfo?.players[indexPlayer]!,
-          ships: shipReq.ships
-        });
-        gameList.set(this.idGame, gameInfo);
+        const player = gameInfo?.players[indexPlayer];
+        if (player) {
+          gameInfo?.players.splice(indexPlayer, 1, {
+            ...player,
+            ships: shipReq.ships,
+          });
+          gameList.set(this.idGame, gameInfo);
+        }
       }
       const coordinatesShips: CoordinatesShips[] = [];
       shipReq.ships.forEach((shipData) => {
@@ -95,6 +113,7 @@ export class Game {
       attackShipsList.set(shipReq.indexPlayer, {
         coordinatesShips: coordinatesShips,
         attack: [],
+        goals: 0,
       });
     }
   };
@@ -129,7 +148,7 @@ export class Game {
       });
       wsList.forEach((ws) => {
         sendTurn({ currentPlayer: playerId }, ws);
-      })
+      });
     }
   };
 
@@ -137,6 +156,8 @@ export class Game {
     gameList: Map<number, GameStore>,
     attackShipsList: Map<number, AttackShips>,
     connectionList: Map<number, WebSocket>,
+    winnersList: Winner[],
+    playerList: Map<string, PlayerStore>,
     attackReq: AttackReq,
     turnPlayerId: TurnPlayerId,
   ): void {
@@ -173,19 +194,18 @@ export class Game {
     }
 
     currentPlayerShips.attack.push(`${attackReq.x}${attackReq.y}`);
-    attackShipsList.set(currentPlayer.idPlayer, currentPlayerShips);
-
     const enemyShipIndex = enemyShips.coordinatesShips.findIndex((coordinates) => {
       return coordinates.coordinates.has(`${attackReq.x}${attackReq.y}`);
-    })
+    });
     if (enemyShipIndex === -1) {
+      attackShipsList.set(currentPlayer.idPlayer, currentPlayerShips);
       const res: AttackRes = {
         position: {
           x: attackReq.x,
           y: attackReq.y,
         },
         currentPlayer: attackReq.indexPlayer,
-        status: AttackStatus.MISS
+        status: AttackStatus.MISS,
       };
       sendAttackRes(res, currentWS);
       sendAttackRes(res, enemyWS);
@@ -194,6 +214,11 @@ export class Game {
       turnPlayerId.value = enemy.idPlayer;
       return;
     }
+
+    attackShipsList.set(currentPlayer.idPlayer, {
+      ...currentPlayerShips,
+      goals: currentPlayerShips.goals + 1,
+    });
     const attackedShip = enemyShips.coordinatesShips[enemyShipIndex];
     if (!attackedShip) {
       return;
@@ -205,8 +230,8 @@ export class Game {
           y: attackReq.y,
         },
         currentPlayer: attackReq.indexPlayer,
-        status: AttackStatus.SHOT
-      }
+        status: AttackStatus.SHOT,
+      };
 
       enemyShips.coordinatesShips.splice(enemyShipIndex, 1, {
         ...attackedShip,
@@ -214,7 +239,7 @@ export class Game {
       });
 
       attackShipsList.set(enemy.idPlayer, {
-        ...enemyShips
+        ...enemyShips,
       });
       sendAttackRes(res, currentWS);
       sendAttackRes(res, enemyWS);
@@ -229,7 +254,7 @@ export class Game {
             y: elem.y,
           },
           currentPlayer: attackReq.indexPlayer,
-          status: AttackStatus.KILLED
+          status: AttackStatus.KILLED,
         };
         sendAttackRes(res, currentWS);
         sendAttackRes(res, enemyWS);
@@ -243,7 +268,7 @@ export class Game {
             y: elem.y,
           },
           currentPlayer: attackReq.indexPlayer,
-          status: AttackStatus.MISS
+          status: AttackStatus.MISS,
         };
         sendAttackRes(res, currentWS);
         sendAttackRes(res, enemyWS);
@@ -253,6 +278,14 @@ export class Game {
       }
       sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
       sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
+      this.checkFinishGame(
+        attackShipsList,
+        connectionList,
+        winnersList,
+        playerList,
+        currentPlayer.idPlayer,
+        enemy?.idPlayer,
+      );
     }
   }
 
@@ -322,11 +355,50 @@ export class Game {
       }
       counter--;
     } while (isExist && counter > 0);
-    return  { x, y };
+    return { x, y };
   }
 
-  private getRandomValue = (min = 0, max = 9)  => {
+  private getRandomValue = (min = 0, max = 9): number => {
     return Math.floor(Math.random() * (max - min) + min);
-  }
+  };
 
+  private checkFinishGame = (
+    attackShipsList: Map<number, AttackShips>,
+    connectionList: Map<number, WebSocket>,
+    winnersList: Winner[],
+    playerList: Map<string, PlayerStore>,
+    playerId: number,
+    enemyId: number,
+  ): void => {
+    const compartmentsCnt = attackShipsList.get(playerId)?.goals;
+
+    if (compartmentsCnt === 20) {
+      const res: FinishGameRes = {
+        winPlayer: playerId,
+      };
+      let username: string | null = null;
+      playerList.forEach((value) => {
+        if (value.index === playerId) {
+          username = value.name;
+        }
+      });
+      if (username) {
+        const index = winnersList.findIndex((elem) => elem.name === username);
+        winnersList.splice(index, 1, {
+          name: username,
+          wins: (winnersList[index]?.wins ?? 0) + 1,
+        });
+      }
+      const currentWs = connectionList.get(playerId);
+      if (currentWs) {
+        sendFinishGameRes(res, currentWs);
+        sendUpdateWinners(winnersList, currentWs);
+      }
+      const enemyWs = connectionList.get(enemyId);
+      if (enemyWs) {
+        sendFinishGameRes(res, enemyWs);
+        sendUpdateWinners(winnersList, enemyWs);
+      }
+    }
+  };
 }
