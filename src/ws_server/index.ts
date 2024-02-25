@@ -4,7 +4,7 @@ import { Player, PlayerStore } from './Player';
 import { sendCreateGame, sendCreatePlayer, sendUpdateRoomForAll, sendUpdateWinners } from './controller';
 import { Room } from './Room';
 import { Game, GameStore } from './Game';
-import { parseData, parseRequest } from './utils';
+import { getBotShips, parseData, parseRequest } from './utils';
 
 const playerList: Map<string, PlayerStore> = new Map();
 const roomList: Map<number, list.RoomInfo> = new Map();
@@ -16,8 +16,10 @@ const turnPlayerId: list.TurnPlayerId = { value: null };
 
 export const connectionHandler = (ws: WebSocket): void => {
   let player: Player;
+  let bot: Player;
   let room: Room;
   let game: Game;
+  let botCounter = 0;
 
   ws.on('message', (request: string): void => {
     console.log('received: %s', request);
@@ -74,6 +76,18 @@ export const connectionHandler = (ws: WebSocket): void => {
         break;
       case list.MessageType.ADD_SHIPS:
         const addShipReq = JSON.parse(data) as list.AddShipsReq;
+        if (game && game.isBotGame()) {
+          const botShips = getBotShips();
+          const addShipBotReq = {
+            gameId: game.getId(),
+            indexPlayer: bot.getId(),
+            ships: botShips,
+          } as list.AddShipsReq;
+          game.addShips(addShipReq, gameList, attackShipsList);
+          game.addShips(addShipBotReq, gameList, attackShipsList);
+          game.gameStartIfReady(gameList, connectionList, player.getId(), turnPlayerId);
+          return;
+        }
         if (!game) {
           game = new Game(gameList, addShipReq.gameId);
         } else if (!gameList.has(game.getId())) {
@@ -86,6 +100,41 @@ export const connectionHandler = (ws: WebSocket): void => {
       case list.MessageType.RANDOM_ATTACK:
         const attackReq = JSON.parse(data) as list.AttackReq;
         game.attack(gameList, attackShipsList, connectionList, winnersList, playerList, attackReq, turnPlayerId);
+        if (game.isBotGame()) {
+          const botAttackReq: list.AttackReq = {
+            gameId: game.getId(),
+            indexPlayer: bot.getId(),
+          };
+          game.attack(
+            gameList,
+            attackShipsList,
+            connectionList,
+            winnersList,
+            playerList,
+            botAttackReq,
+            turnPlayerId,
+            true,
+          );
+        }
+        break;
+      case list.MessageType.SINGLE_PLAY:
+        if (room && room.getId()) {
+          room.removeRoom(roomList, room.getId());
+        }
+        botCounter = botCounter + 1;
+        bot = new Player(`bot${botCounter}`, `bot${botCounter}`, ws);
+        bot.validate(playerList);
+        game = new Game(gameList, undefined, true);
+        const botId = bot.getId();
+        game.addUser(player.getId(), gameList);
+        game.addUser(botId, gameList);
+        sendCreateGame(
+          {
+            idGame: game.getId(),
+            idPlayer: player.getId(),
+          },
+          ws,
+        );
         break;
     }
   });

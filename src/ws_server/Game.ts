@@ -16,6 +16,7 @@ import {
 } from './constants';
 import { sendAttackRes, sendFinishGameRes, sendStartGame, sendTurn, sendUpdateWinners } from './controller';
 import { PlayerStore } from './Player';
+import { getRandomValue } from './utils';
 
 let lastGameIndex = 0;
 
@@ -31,8 +32,10 @@ export interface GameStore {
 
 export class Game {
   private idGame: number;
+  private withBot: boolean;
 
-  constructor(gameList: Map<number, GameStore>, idGame?: number) {
+  constructor(gameList: Map<number, GameStore>, idGame?: number, withBot = false) {
+    this.withBot = withBot;
     if (idGame) {
       this.idGame = idGame;
     } else {
@@ -46,6 +49,10 @@ export class Game {
 
   public getId = (): number => {
     return this.idGame;
+  };
+
+  public isBotGame = (): boolean => {
+    return this.withBot;
   };
 
   public getCreateGameObj = (gameList: Map<number, GameStore>): CreateGameRes[] => {
@@ -156,7 +163,7 @@ export class Game {
     }
   };
 
-  public attack(
+  public attack = (
     gameList: Map<number, GameStore>,
     attackShipsList: Map<number, AttackShips>,
     connectionList: Map<number, WebSocket>,
@@ -164,7 +171,8 @@ export class Game {
     playerList: Map<string, PlayerStore>,
     attackReq: AttackReq,
     turnPlayerId: TurnPlayerId,
-  ): void {
+    isBotAttack: boolean = false,
+  ): void => {
     if (turnPlayerId.value !== attackReq.indexPlayer) {
       return;
     }
@@ -179,7 +187,10 @@ export class Game {
     }
     const currentWS = connectionList.get(currentPlayer?.idPlayer);
     const enemyWS = connectionList.get(enemy?.idPlayer);
-    if (!currentWS || !enemyWS) {
+    if (!currentWS && !isBotAttack) {
+      return;
+    }
+    if (!enemyWS && !this.withBot) {
       return;
     }
     const currentPlayerShips = attackShipsList.get(currentPlayer.idPlayer);
@@ -196,7 +207,6 @@ export class Game {
     if (isDuplicateShot !== -1) {
       return;
     }
-
     currentPlayerShips.attack.push(`${attackReq.x}${attackReq.y}`);
     const enemyShipIndex = enemyShips.coordinatesShips.findIndex((coordinates) => {
       return coordinates.coordinates.has(`${attackReq.x}${attackReq.y}`);
@@ -211,10 +221,14 @@ export class Game {
         currentPlayer: attackReq.indexPlayer,
         status: AttackStatus.MISS,
       };
-      sendAttackRes(res, currentWS);
-      sendAttackRes(res, enemyWS);
-      sendTurn({ currentPlayer: enemy.idPlayer }, currentWS);
-      sendTurn({ currentPlayer: enemy.idPlayer }, enemyWS);
+      if (currentWS) {
+        sendAttackRes(res, currentWS);
+        sendTurn({ currentPlayer: enemy.idPlayer }, currentWS);
+      }
+      if (enemyWS) {
+        sendAttackRes(res, enemyWS);
+        sendTurn({ currentPlayer: enemy.idPlayer }, enemyWS);
+      }
       turnPlayerId.value = enemy.idPlayer;
       return;
     }
@@ -245,10 +259,14 @@ export class Game {
       attackShipsList.set(enemy.idPlayer, {
         ...enemyShips,
       });
-      sendAttackRes(res, currentWS);
-      sendAttackRes(res, enemyWS);
-      sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
-      sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
+      if (currentWS) {
+        sendAttackRes(res, currentWS);
+        sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
+      }
+      if (enemyWS) {
+        sendAttackRes(res, enemyWS);
+        sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
+      }
     }
     if (attackedShip.compartmentsCnt === 1) {
       attackedShip.coordinates.forEach((elem) => {
@@ -260,8 +278,12 @@ export class Game {
           currentPlayer: attackReq.indexPlayer,
           status: AttackStatus.KILLED,
         };
-        sendAttackRes(res, currentWS);
-        sendAttackRes(res, enemyWS);
+        if (currentWS) {
+          sendAttackRes(res, currentWS);
+        }
+        if (enemyWS) {
+          sendAttackRes(res, enemyWS);
+        }
       });
       const currentPlayerShips = attackShipsList.get(currentPlayer.idPlayer);
       attackedShip.emptyCell.forEach((elem) => {
@@ -274,14 +296,22 @@ export class Game {
           currentPlayer: attackReq.indexPlayer,
           status: AttackStatus.MISS,
         };
-        sendAttackRes(res, currentWS);
-        sendAttackRes(res, enemyWS);
+        if (currentWS) {
+          sendAttackRes(res, currentWS);
+        }
+        if (enemyWS) {
+          sendAttackRes(res, enemyWS);
+        }
       });
       if (currentPlayerShips) {
         attackShipsList.set(currentPlayer.idPlayer, currentPlayerShips);
       }
-      sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
-      sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
+      if (currentWS) {
+        sendTurn({ currentPlayer: currentPlayer.idPlayer }, currentWS);
+      }
+      if (enemyWS) {
+        sendTurn({ currentPlayer: currentPlayer.idPlayer }, enemyWS);
+      }
       const isFinished = this.checkFinishGame(
         attackShipsList,
         connectionList,
@@ -295,9 +325,26 @@ export class Game {
       if (isFinished) {
         turnPlayerId = { value: null };
         gameList.delete(attackReq.gameId);
+        this.withBot = false;
+        return;
       }
     }
-  }
+    if (enemyShipIndex !== -1 && isBotAttack) {
+      const { x, y } = this.getRandomShot(currentPlayerShips);
+      attackReq.x = x;
+      attackReq.y = y;
+      this.attack(
+        gameList,
+        attackShipsList,
+        connectionList,
+        winnersList,
+        playerList,
+        attackReq,
+        turnPlayerId,
+        isBotAttack,
+      );
+    }
+  };
 
   private fillEmptyCell = (shipData: Ship): Map<string, Position> => {
     const x = shipData.position.x;
@@ -357,8 +404,8 @@ export class Game {
     let x: number;
     let y: number;
     do {
-      x = this.getRandomValue();
-      y = this.getRandomValue();
+      x = getRandomValue();
+      y = getRandomValue();
       const duplicateShot = currentPlayerShips?.attack.find((elem) => elem === `${x}${y}`);
       if (!duplicateShot) {
         isExist = false;
@@ -367,10 +414,6 @@ export class Game {
     } while (isExist && counter > 0);
     return { x, y };
   }
-
-  private getRandomValue = (min = 0, max = 9): number => {
-    return Math.floor(Math.random() * (max - min) + min);
-  };
 
   private checkFinishGame = (
     attackShipsList: Map<number, AttackShips>,
